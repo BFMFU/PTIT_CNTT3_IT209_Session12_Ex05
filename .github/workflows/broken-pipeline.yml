@@ -1,0 +1,46 @@
+name: Broken Pipeline - Ex5
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Lỗi 1: Thiếu bước grant quyền thực thi (chmod +x ./gradlew) -> Gây Permission Denied
+      - name: Run Gradle tests and package
+        run: ./gradlew test bootJar
+
+      # Lỗi 2: Sai tên biến Secret (REGISTRY_TOKN thay vì GITHUB_TOKEN) -> Gây Authentication Failed
+      - name: Login to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.REGISTRY_TOKN }}
+
+      # Lỗi 3: Chỉ định sai build context và file path (./docker thay vì .) -> Không tìm thấy Dockerfile
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./docker
+          file: ./docker/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}:latest
